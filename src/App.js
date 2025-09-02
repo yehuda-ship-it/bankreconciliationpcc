@@ -53,27 +53,27 @@ function App() {
 
   const cardStyle = {
     backgroundColor: 'white',
-    padding: '32px',
+    padding: '24px',
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
     border: '1px solid #e5e7eb',
     maxWidth: '1200px',
-    margin: '0 auto 24px auto'
+    margin: '0 auto 16px auto'
   };
 
   const titleStyle = {
-    fontSize: '36px',
+    fontSize: '28px',
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'center',
-    marginBottom: '8px'
+    marginBottom: '6px'
   };
 
   const subtitleStyle = {
     color: '#6b7280',
     textAlign: 'center',
-    fontSize: '18px',
-    marginBottom: '32px'
+    fontSize: '16px',
+    marginBottom: '24px'
   };
 
   const buttonStyle = {
@@ -94,12 +94,12 @@ function App() {
   };
 
   const uploadAreaStyle = {
-    border: '3px dashed #d1d5db',
-    borderRadius: '12px',
-    padding: '48px 32px',
+    border: '2px dashed #d1d5db',
+    borderRadius: '8px',
+    padding: '16px 12px',
     textAlign: 'center',
     backgroundColor: '#fafafa',
-    margin: '16px 0',
+    margin: '8px 0',
     cursor: 'pointer'
   };
 
@@ -127,8 +127,8 @@ function App() {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '16px',
-    margin: '32px 0'
+    gap: '12px',
+    margin: '20px 0'
   };
 
   const stepStyle = {
@@ -165,12 +165,6 @@ function App() {
     backgroundColor: 'white',
     transition: 'all 0.2s',
     marginBottom: '16px'
-  };
-
-  const templateCardHoverStyle = {
-    ...templateCardStyle,
-    borderColor: '#111827',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
   };
 
   // File handling functions
@@ -494,17 +488,16 @@ function App() {
 
   // Render functions
   const renderFileUpload = (title, description, files, type, accept) => (
-    <div style={{ marginBottom: '32px' }}>
-      <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px' }}>{title}</h3>
-      <p style={{ color: '#6b7280', marginBottom: '16px' }}>{description}</p>
+    <div style={{ marginBottom: '16px' }}>
+      <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>{title}</h3>
+      <p style={{ color: '#6b7280', marginBottom: '8px', fontSize: '13px' }}>{description}</p>
       
       <div style={uploadAreaStyle}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>📁</div>
-        <p style={{ fontWeight: '600', marginBottom: '8px' }}>
+        <p style={{ fontWeight: '600', marginBottom: '4px', fontSize: '14px' }}>
           Drag and drop your {type === 'pcc' ? 'PCC' : 'Bank'} files here
         </p>
-        <p style={{ color: '#6b7280', marginBottom: '16px' }}>or</p>
-        <label style={buttonStyle}>
+        <p style={{ color: '#6b7280', marginBottom: '6px', fontSize: '13px' }}>or</p>
+        <label style={{...buttonStyle, padding: '6px 16px', fontSize: '14px'}}>
           Browse Files
           <input
             type="file"
@@ -517,15 +510,15 @@ function App() {
       </div>
 
       {files.length > 0 && (
-        <div style={{ marginTop: '16px' }}>
-          <h4 style={{ fontWeight: '600', marginBottom: '8px' }}>Uploaded Files:</h4>
+        <div style={{ marginTop: '8px' }}>
+          <h4 style={{ fontWeight: '600', marginBottom: '4px', fontSize: '14px' }}>Uploaded:</h4>
           {files.map((file, index) => (
-            <div key={index} style={fileItemStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span>📄</span>
-                <span style={{ fontWeight: '500' }}>{file.name}</span>
-                <span style={{ color: '#6b7280', fontSize: '14px' }}>
-                  {(file.size / 1024).toFixed(1)} KB
+            <div key={index} style={{...fileItemStyle, padding: '8px'}}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '14px' }}>📄</span>
+                <span style={{ fontWeight: '500', fontSize: '13px' }}>{file.name}</span>
+                <span style={{ color: '#6b7280', fontSize: '11px' }}>
+                  ({(file.size / 1024).toFixed(0)}KB)
                 </span>
               </div>
               <button
@@ -535,7 +528,7 @@ function App() {
                   border: 'none', 
                   color: '#6b7280', 
                   cursor: 'pointer',
-                  fontSize: '18px'
+                  fontSize: '14px'
                 }}
               >
                 ✕
@@ -549,7 +542,7 @@ function App() {
 
   const renderStep1 = () => (
     <div style={cardStyle}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
         📁 Step 1: Upload Your Files
       </h2>
       
@@ -743,20 +736,30 @@ function App() {
             </div>
           )}
           
-          <button 
-            onClick={() => setShowCustomMapping(true)}
-            style={{
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button onClick={() => setStep(2)} style={{
               ...buttonStyle,
               backgroundColor: 'white',
               color: '#374151',
-              border: '2px solid #d1d5db',
-              width: '100%',
-              padding: '16px 24px',
-              fontSize: '16px'
-            }}
-          >
-            + Create New Mapping
-          </button>
+              border: '2px solid #d1d5db'
+            }}>
+              Back
+            </button>
+            <button 
+              onClick={() => setShowCustomMapping(true)}
+              style={{
+                ...buttonStyle,
+                backgroundColor: 'white',
+                color: '#374151',
+                border: '2px solid #d1d5db',
+                flex: 1,
+                padding: '16px 24px',
+                fontSize: '16px'
+              }}
+            >
+              + Create New Mapping
+            </button>
+          </div>
         </div>
       ) : (
         // Custom mapping view
@@ -909,113 +912,118 @@ function App() {
     return (
       <div style={cardStyle}>
         <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>
-          💰 Step 4: Map PCC Banks to Bank Statement Identifiers
+          💰 Step 4: Bank Mapping & Selection
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', marginBottom: '32px' }}>
-          <div>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-              PCC Bank Accounts
-            </h3>
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {pccBanks.map(bank => (
-                <div key={bank} style={{
-                  padding: '16px',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '8px',
-                  borderLeft: '4px solid #9ca3af'
-                }}>
-                  <div style={{ fontWeight: '600' }}>{bank}</div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                    {pccData.filter(row => row['Bank Account Description'] === bank).length} transactions
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-              Bank Statement Identifiers
-            </h3>
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {uniqueBankIds.map(id => (
-                <div key={id} style={{
-                  padding: '16px',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '8px',
-                  borderLeft: '4px solid #4b5563'
-                }}>
-                  <div style={{ fontWeight: '600' }}>{id}</div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                    {bankData.filter(row => row[bankColumnMappings.bankIdentifier] === id).length} transactions
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         <div style={{ display: 'grid', gap: '16px', marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600' }}>Create Mappings</h3>
-          {pccBanks.map(pccBank => (
-            <div key={pccBank} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              padding: '16px',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px'
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: '600' }}>{pccBank}</div>
-                <div style={{ fontSize: '14px', color: '#6b7280' }}>PCC Bank Account</div>
-              </div>
-              <div style={{ color: '#9ca3af' }}>→</div>
-              <div style={{ flex: 1 }}>
-                <select
-                  value={bankMapping[pccBank] || ''}
-                  onChange={(e) => handleBankMapping(pccBank, e.target.value)}
-                  style={selectStyle}
-                >
-                  <option value="">-- Select Bank ID --</option>
-                  {uniqueBankIds.map(id => (
-                    <option key={id} value={id}>{id}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-            Select Bank to Reconcile Today
+          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+            Map PCC Banks to Bank Statement IDs
           </h3>
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {pccBanks.filter(bank => bankMapping[bank]).map(bank => (
-              <button
-                key={bank}
-                onClick={() => setSelectedPccBank(bank)}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  textAlign: 'left',
-                  border: selectedPccBank === bank ? '2px solid #6b7280' : '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  backgroundColor: selectedPccBank === bank ? '#f9fafb' : 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontWeight: '600' }}>{bank}</div>
-                <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                  Maps to: {bankMapping[bank]} | 
-                  PCC Transactions: {pccData.filter(row => row['Bank Account Description'] === bank).length} | 
-                  Bank Transactions: {bankData.filter(row => row[bankColumnMappings.bankIdentifier] === bankMapping[bank]).length}
+          <p style={{ color: '#6b7280', marginBottom: '16px', fontSize: '14px' }}>
+            Connect each PCC bank account to its corresponding identifier in your bank statement, then select which one to reconcile.
+          </p>
+          
+          {pccBanks.map(pccBank => {
+            const pccTxnCount = pccData.filter(row => row['Bank Account Description'] === pccBank).length;
+            const mappedBankId = bankMapping[pccBank];
+            const bankTxnCount = mappedBankId ? bankData.filter(row => row[bankColumnMappings.bankIdentifier] === mappedBankId).length : 0;
+            const isSelected = selectedPccBank === pccBank;
+            
+            return (
+              <div key={pccBank} style={{
+                border: isSelected ? '2px solid #111827' : '1px solid #e5e7eb',
+                borderRadius: '12px',
+                padding: '20px',
+                backgroundColor: isSelected ? '#f9fafb' : 'white',
+                transition: 'all 0.2s'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 1fr', gap: '16px', alignItems: 'center' }}>
+                  {/* PCC Bank Info */}
+                  <div>
+                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>{pccBank}</div>
+                    <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                      {pccTxnCount} PCC transactions
+                    </div>
+                  </div>
+                  
+                  {/* Arrow */}
+                  <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '18px' }}>→</div>
+                  
+                  {/* Bank ID Selector */}
+                  <div>
+                    <select
+                      value={mappedBankId || ''}
+                      onChange={(e) => handleBankMapping(pccBank, e.target.value)}
+                      style={{
+                        ...selectStyle,
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      <option value="">-- Select Bank ID --</option>
+                      {uniqueBankIds.map(id => (
+                        <option key={id} value={id}>
+                          {id} ({bankData.filter(row => row[bankColumnMappings.bankIdentifier] === id).length} txns)
+                        </option>
+                      ))}
+                    </select>
+                    {mappedBankId && (
+                      <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                        {bankTxnCount} bank transactions
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Reconcile Button */}
+                  <div style={{ textAlign: 'center' }}>
+                    {mappedBankId ? (
+                      <button
+                        onClick={() => setSelectedPccBank(isSelected ? '' : pccBank)}
+                        style={{
+                          ...buttonStyle,
+                          backgroundColor: isSelected ? '#374151' : '#111827',
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          width: '100%'
+                        }}
+                      >
+                        {isSelected ? 'Selected ✓' : 'Select to Reconcile'}
+                      </button>
+                    ) : (
+                      <div style={{ 
+                        padding: '8px 16px',
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        color: '#6b7280',
+                        textAlign: 'center'
+                      }}>
+                        Map first
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </button>
-            ))}
-          </div>
+                
+                {/* Selected bank details */}
+                {isSelected && (
+                  <div style={{ 
+                    marginTop: '16px',
+                    padding: '12px',
+                    backgroundColor: '#e0f2fe',
+                    borderRadius: '8px',
+                    border: '1px solid #b3e5fc'
+                  }}>
+                    <div style={{ fontWeight: '600', color: '#0277bd', marginBottom: '4px' }}>
+                      Ready to Reconcile
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#0277bd' }}>
+                      {pccBank} ↔ {mappedBankId} | Comparing {pccTxnCount} PCC vs {bankTxnCount} bank transactions
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', gap: '16px' }}>

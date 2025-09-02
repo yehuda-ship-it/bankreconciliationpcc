@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -21,6 +21,27 @@ function App() {
   const [reconciliationResults, setReconciliationResults] = useState(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // Template-related state
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [showCustomMapping, setShowCustomMapping] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+
+  // State for expandable sections
+  const [showMatches, setShowMatches] = useState(false);
+  const [showPccUnmatched, setShowPccUnmatched] = useState(false);
+  const [showBankUnmatched, setShowBankUnmatched] = useState(false);
+  const [expandedMatches, setExpandedMatches] = useState(false);
+  const [expandedPccUnmatched, setExpandedPccUnmatched] = useState(false);
+  const [expandedBankUnmatched, setExpandedBankUnmatched] = useState(false);
+
+  // Load templates from localStorage on component mount
+  useEffect(() => {
+    const templates = localStorage.getItem('bankReconciliationTemplates');
+    if (templates) {
+      setSavedTemplates(JSON.parse(templates));
+    }
+  }, []);
 
   // Styles
   const containerStyle = {
@@ -135,6 +156,23 @@ function App() {
     borderColor: '#d1d5db'
   };
 
+  // Template styles
+  const templateCardStyle = {
+    border: '2px solid #e5e7eb',
+    borderRadius: '12px',
+    padding: '24px',
+    cursor: 'pointer',
+    backgroundColor: 'white',
+    transition: 'all 0.2s',
+    marginBottom: '16px'
+  };
+
+  const templateCardHoverStyle = {
+    ...templateCardStyle,
+    borderColor: '#111827',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+  };
+
   // File handling functions
   const handleFileUpload = useCallback((files, type) => {
     const fileArray = Array.from(files);
@@ -217,6 +255,7 @@ function App() {
         setBankData(data);
         setBankColumns(Object.keys(data[0]));
         setSelectedBankFile(file);
+        setShowCustomMapping(false); // Always start with template selection
         setStep(3);
       }
     } catch (error) {
@@ -231,6 +270,45 @@ function App() {
       ...prev,
       [mappingType]: column
     }));
+  };
+
+  // Template functions
+  const saveTemplate = () => {
+    if (!templateName.trim()) {
+      alert('Please enter a template name');
+      return;
+    }
+
+    const newTemplate = {
+      id: Date.now(),
+      name: templateName,
+      mapping: { 
+        bankIdentifier: bankColumnMappings.bankIdentifier,
+        amount: bankColumnMappings.amount,
+        date: bankColumnMappings.date,
+        description: bankColumnMappings.description
+      }
+    };
+
+    const updatedTemplates = [...savedTemplates, newTemplate];
+    setSavedTemplates(updatedTemplates);
+    localStorage.setItem('bankReconciliationTemplates', JSON.stringify(updatedTemplates));
+    
+    setTemplateName('');
+    alert('Template saved successfully!');
+  };
+
+  const loadTemplate = (template) => {
+    setBankColumnMappings(template.mapping);
+    setStep(4); // Skip directly to Step 4 when using a template
+  };
+
+  const deleteTemplate = (templateId) => {
+    if (window.confirm('Are you sure you want to delete this template?')) {
+      const updatedTemplates = savedTemplates.filter(t => t.id !== templateId);
+      setSavedTemplates(updatedTemplates);
+      localStorage.setItem('bankReconciliationTemplates', JSON.stringify(updatedTemplates));
+    }
   };
 
   const proceedToMapping = () => {
@@ -318,6 +396,7 @@ function App() {
 
     const wb = XLSX.utils.book_new();
 
+    // Summary Tab
     const summaryData = [
       ['PCC Bank Reconciliation Report'],
       ['Generated on:', new Date().toLocaleString()],
@@ -330,10 +409,82 @@ function App() {
       ['PCC Total:', reconciliationResults.pccTotal.toFixed(2)],
       ['Bank Total:', reconciliationResults.bankTotal.toFixed(2)],
       ['Difference:', reconciliationResults.difference.toFixed(2)],
-      ['Status:', Math.abs(reconciliationResults.difference) < 0.01 ? 'MATCHED' : 'DISCREPANCY']
+      ['Status:', Math.abs(reconciliationResults.difference) < 0.01 ? 'MATCHED' : 'DISCREPANCY'],
+      [''],
+      ['Reconciliation Counts'],
+      ['Successful Matches:', reconciliationResults.matches.length],
+      ['PCC Unmatched:', reconciliationResults.unmatchedPcc.length],
+      ['Bank Unmatched:', reconciliationResults.unmatchedBank.length]
     ];
     const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
     XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
+
+    // Matches Tab
+    if (reconciliationResults.matches.length > 0) {
+      const matchesData = [
+        ['Successful Matches'],
+        [''],
+        ['PCC Batch Number', 'PCC Description', 'PCC Amount', 'PCC Posting Date', 'Bank Amount', 'Bank Date', 'Difference']
+      ];
+      
+      reconciliationResults.matches.forEach(match => {
+        matchesData.push([
+          match.pccBatch.batchNumber,
+          match.pccBatch.description,
+          match.pccBatch.totalAmount.toFixed(2),
+          match.pccBatch.postingDate,
+          parseFloat(match.bankTransaction[bankColumnMappings.amount]).toFixed(2),
+          match.bankTransaction[bankColumnMappings.date],
+          match.difference.toFixed(2)
+        ]);
+      });
+      
+      const matchesWS = XLSX.utils.aoa_to_sheet(matchesData);
+      XLSX.utils.book_append_sheet(wb, matchesWS, 'Matches');
+    }
+
+    // PCC Unmatched Tab
+    if (reconciliationResults.unmatchedPcc.length > 0) {
+      const pccUnmatchedData = [
+        ['PCC Batches Without Bank Matches'],
+        [''],
+        ['Batch Number', 'Description', 'Amount', 'Posting Date', 'Transaction Count']
+      ];
+      
+      reconciliationResults.unmatchedPcc.forEach(batch => {
+        pccUnmatchedData.push([
+          batch.batchNumber,
+          batch.description,
+          batch.totalAmount.toFixed(2),
+          batch.postingDate,
+          batch.transactions.length
+        ]);
+      });
+      
+      const pccUnmatchedWS = XLSX.utils.aoa_to_sheet(pccUnmatchedData);
+      XLSX.utils.book_append_sheet(wb, pccUnmatchedWS, 'PCC Unmatched');
+    }
+
+    // Bank Unmatched Tab
+    if (reconciliationResults.unmatchedBank.length > 0) {
+      const bankUnmatchedData = [
+        ['Bank Transactions Without PCC Matches'],
+        [''],
+        ['Bank Identifier', 'Amount', 'Date', 'Description']
+      ];
+      
+      reconciliationResults.unmatchedBank.forEach(txn => {
+        bankUnmatchedData.push([
+          txn[bankColumnMappings.bankIdentifier],
+          parseFloat(txn[bankColumnMappings.amount]).toFixed(2),
+          txn[bankColumnMappings.date],
+          txn[bankColumnMappings.description] || ''
+        ]);
+      });
+      
+      const bankUnmatchedWS = XLSX.utils.aoa_to_sheet(bankUnmatchedData);
+      XLSX.utils.book_append_sheet(wb, bankUnmatchedWS, 'Bank Unmatched');
+    }
 
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
     const filename = `Bank_Reconciliation_${reconciliationResults.selectedPccBank.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.xlsx`;
@@ -510,7 +661,7 @@ function App() {
   const renderStep3 = () => (
     <div style={cardStyle}>
       <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>
-        🔍 Step 3: Identify Bank Statement Columns
+        🔍 Step 3: Column Mapping
       </h2>
       
       <div style={{ 
@@ -528,73 +679,227 @@ function App() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gap: '24px' }}>
+      {!showCustomMapping ? (
+        // Template selection view (default)
         <div>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
-            Which column identifies the bank/account? <span style={{ color: '#dc2626' }}>*</span>
-          </label>
-          <select 
-            value={bankColumnMappings.bankIdentifier}
-            onChange={(e) => handleColumnMapping('bankIdentifier', e.target.value)}
-            style={selectStyle}
+          <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>
+            Select a Template
+          </h3>
+          {savedTemplates.length > 0 ? (
+            <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>
+              {savedTemplates.map(template => (
+                <div key={template.id} style={templateCardStyle}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
+                      {template.name}
+                    </h4>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTemplate(template.id);
+                      }}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: '#dc2626', 
+                        cursor: 'pointer',
+                        fontSize: '16px',
+                        padding: '4px'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                    <div>
+                      <span style={{ fontWeight: '600', color: '#6b7280', fontSize: '14px' }}>BANK ID:</span>
+                      <div style={{ fontSize: '16px' }}>{template.mapping.bankIdentifier || 'Not set'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: '600', color: '#6b7280', fontSize: '14px' }}>AMOUNT:</span>
+                      <div style={{ fontSize: '16px' }}>{template.mapping.amount || 'Not set'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: '600', color: '#6b7280', fontSize: '14px' }}>DATE:</span>
+                      <div style={{ fontSize: '16px' }}>{template.mapping.date || 'Not set'}</div>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => loadTemplate(template)}
+                    style={{...buttonStyle, width: '100%'}}
+                  >
+                    Use This Template
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '48px', backgroundColor: '#f9fafb', borderRadius: '8px', marginBottom: '24px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>No Templates Found</h3>
+              <p style={{ color: '#6b7280' }}>Create your first template to save time on future reconciliations.</p>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => setShowCustomMapping(true)}
+            style={{
+              ...buttonStyle,
+              backgroundColor: 'white',
+              color: '#374151',
+              border: '2px solid #d1d5db',
+              width: '100%',
+              padding: '16px 24px',
+              fontSize: '16px'
+            }}
           >
-            <option value="">-- Select Column --</option>
-            {bankColumns.map(col => (
-              <option key={col} value={col}>{col}</option>
-            ))}
-          </select>
+            + Create New Mapping
+          </button>
         </div>
-
+      ) : (
+        // Custom mapping view
         <div>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
-            Which column contains the transaction amounts? <span style={{ color: '#dc2626' }}>*</span>
-          </label>
-          <select 
-            value={bankColumnMappings.amount}
-            onChange={(e) => handleColumnMapping('amount', e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">-- Select Column --</option>
-            {bankColumns.map(col => (
-              <option key={col} value={col}>{col}</option>
-            ))}
-          </select>
-        </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '600', margin: 0 }}>
+              Column Mapping
+            </h3>
+            <button 
+              onClick={() => setShowCustomMapping(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                textDecoration: 'underline'
+              }}
+            >
+              ← Back to Templates
+            </button>
+          </div>
 
-        <div>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
-            Which column contains the transaction dates? <span style={{ color: '#dc2626' }}>*</span>
-          </label>
-          <select 
-            value={bankColumnMappings.date}
-            onChange={(e) => handleColumnMapping('date', e.target.value)}
-            style={selectStyle}
-          >
-            <option value="">-- Select Column --</option>
-            {bankColumns.map(col => (
-              <option key={col} value={col}>{col}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+          <div style={{ display: 'grid', gap: '24px', marginBottom: '32px' }}>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
+                Which column identifies the bank/account? <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <select 
+                value={bankColumnMappings.bankIdentifier}
+                onChange={(e) => handleColumnMapping('bankIdentifier', e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">-- Select Column --</option>
+                {bankColumns.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
 
-      <div style={{ marginTop: '32px', display: 'flex', gap: '16px' }}>
-        <button onClick={() => setStep(2)} style={{
-          ...buttonStyle,
-          backgroundColor: 'white',
-          color: '#374151',
-          border: '2px solid #d1d5db'
-        }}>
-          Back
-        </button>
-        <button
-          onClick={proceedToMapping}
-          disabled={!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date}
-          style={!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date ? buttonDisabledStyle : buttonStyle}
-        >
-          Proceed to Bank Mapping
-        </button>
-      </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
+                Which column contains the transaction amounts? <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <select 
+                value={bankColumnMappings.amount}
+                onChange={(e) => handleColumnMapping('amount', e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">-- Select Column --</option>
+                {bankColumns.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
+                Which column contains the transaction dates? <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <select 
+                value={bankColumnMappings.date}
+                onChange={(e) => handleColumnMapping('date', e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">-- Select Column --</option>
+                {bankColumns.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
+                Description Column (Optional):
+              </label>
+              <select 
+                value={bankColumnMappings.description}
+                onChange={(e) => handleColumnMapping('description', e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">-- Select Column --</option>
+                {bankColumns.map(col => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Save Template Section */}
+          <div style={{ 
+            padding: '24px', 
+            backgroundColor: '#f9fafb', 
+            borderRadius: '8px', 
+            marginBottom: '24px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+              💾 Save as Template
+            </h4>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input
+                type="text"
+                placeholder="Template name (e.g., 'Bankwell Bank Template')"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '16px'
+                }}
+              />
+              <button 
+                onClick={saveTemplate}
+                disabled={!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date || !templateName.trim()}
+                style={(!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date || !templateName.trim()) ? buttonDisabledStyle : buttonStyle}
+              >
+                Save Template
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button onClick={() => setStep(2)} style={{
+              ...buttonStyle,
+              backgroundColor: 'white',
+              color: '#374151',
+              border: '2px solid #d1d5db'
+            }}>
+              Back
+            </button>
+            <button
+              onClick={proceedToMapping}
+              disabled={!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date}
+              style={!bankColumnMappings.bankIdentifier || !bankColumnMappings.amount || !bankColumnMappings.date ? buttonDisabledStyle : buttonStyle}
+            >
+              Proceed to Bank Mapping
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -752,46 +1057,111 @@ function App() {
         </div>
 
         <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>
-          {isMatched ? '✅' : '❌'} Summary
+          {isMatched ? '✅' : '❌'} Reconciliation Summary
         </h3>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '24px' }}>
-          <div style={{
-            padding: '24px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            textAlign: 'center',
-            border: '1px solid #e5e7eb'
-          }}>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
+          <div 
+            onClick={() => {/* PCC Total - no action */}}
+            style={{
+              padding: '20px',
+              backgroundColor: '#f0f9ff',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: '2px solid #0ea5e9'
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: '#0369a1' }}>
               ${reconciliationResults.pccTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <div style={{ color: '#6b7280', fontWeight: '600' }}>PCC Total</div>
+            <div style={{ color: '#0369a1', fontWeight: '600', fontSize: '14px' }}>PCC Total</div>
           </div>
-          <div style={{
-            padding: '24px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            textAlign: 'center',
-            border: '1px solid #e5e7eb'
-          }}>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '8px' }}>
+          
+          <div 
+            onClick={() => {/* Bank Total - no action */}}
+            style={{
+              padding: '20px',
+              backgroundColor: '#f0f9ff',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: '2px solid #0ea5e9'
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: '#0369a1' }}>
               ${reconciliationResults.bankTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <div style={{ color: '#6b7280', fontWeight: '600' }}>Bank Total</div>
+            <div style={{ color: '#0369a1', fontWeight: '600', fontSize: '14px' }}>Bank Total</div>
           </div>
-          <div style={{
-            padding: '24px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            textAlign: 'center',
-            border: '1px solid #e5e7eb'
-          }}>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '8px' }}>
+          
+          <div 
+            onClick={() => {/* Difference - no action */}}
+            style={{
+              padding: '20px',
+              backgroundColor: isMatched ? '#f0fdf4' : '#fef2f2',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: `2px solid ${isMatched ? '#22c55e' : '#ef4444'}`
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: isMatched ? '#15803d' : '#dc2626' }}>
               ${Math.abs(reconciliationResults.difference).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            <div style={{ color: '#6b7280', fontWeight: '600' }}>
+            <div style={{ color: isMatched ? '#15803d' : '#dc2626', fontWeight: '600', fontSize: '14px' }}>
               {isMatched ? 'Perfect Match' : 'Difference'}
+            </div>
+          </div>
+          
+          <div 
+            onClick={() => setShowMatches(!showMatches)}
+            style={{
+              padding: '20px',
+              backgroundColor: showMatches ? '#dcfce7' : '#f0fdf4',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: `2px solid ${showMatches ? '#16a34a' : '#22c55e'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: '#15803d' }}>
+              {reconciliationResults.matches.length}
+            </div>
+            <div style={{ color: '#15803d', fontWeight: '600', fontSize: '14px' }}>
+              Matches {showMatches ? '▼' : '▶'}
+            </div>
+          </div>
+          
+          <div 
+            onClick={() => setShowPccUnmatched(!showPccUnmatched)}
+            style={{
+              padding: '20px',
+              backgroundColor: showPccUnmatched ? '#fef3c7' : '#fefbf2',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: `2px solid ${showPccUnmatched ? '#d97706' : '#f59e0b'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: '#d97706' }}>
+              {reconciliationResults.unmatchedPcc.length}
+            </div>
+            <div style={{ color: '#d97706', fontWeight: '600', fontSize: '14px' }}>
+              PCC Unmatched {showPccUnmatched ? '▼' : '▶'}
+            </div>
+          </div>
+          
+          <div 
+            onClick={() => setShowBankUnmatched(!showBankUnmatched)}
+            style={{
+              padding: '20px',
+              backgroundColor: showBankUnmatched ? '#fef3c7' : '#fefbf2',
+              borderRadius: '12px',
+              textAlign: 'center',
+              border: `2px solid ${showBankUnmatched ? '#d97706' : '#f59e0b'}`,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px', color: '#d97706' }}>
+              {reconciliationResults.unmatchedBank.length}
+            </div>
+            <div style={{ color: '#d97706', fontWeight: '600', fontSize: '14px' }}>
+              Bank Unmatched {showBankUnmatched ? '▼' : '▶'}
             </div>
           </div>
         </div>
@@ -800,7 +1170,8 @@ function App() {
           textAlign: 'center', 
           padding: '24px', 
           borderTop: '1px solid #e5e7eb',
-          marginBottom: '24px'
+          borderBottom: '1px solid #e5e7eb',
+          marginBottom: '32px'
         }}>
           <div style={{ fontWeight: 'bold', fontSize: '18px' }}>
             {isMatched 
@@ -808,47 +1179,86 @@ function App() {
               : '⚠ Discrepancies Found Between PCC and Bank Records'
             }
           </div>
+          <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '8px' }}>
+            Click the boxes above to view detailed breakdowns
+          </p>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-            ✓ Successful Matches ({reconciliationResults.matches.length})
-          </h4>
-          {reconciliationResults.matches.slice(0, 3).map((match, index) => (
-            <div key={index} style={{
-              padding: '16px',
-              backgroundColor: '#d4f7e5',
-              borderRadius: '8px',
-              borderLeft: '4px solid #22c55e',
-              marginBottom: '8px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: '600' }}>PCC Batch #{match.pccBatch.batchNumber}</div>
-                  <div style={{ fontSize: '14px', color: '#065f46' }}>{match.pccBatch.description}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                    ${match.pccBatch.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        {showMatches && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '20px', fontWeight: '600' }}>
+                ✓ Successful Matches ({reconciliationResults.matches.length})
+              </h4>
+              {reconciliationResults.matches.length > 3 && (
+                <button
+                  onClick={() => setExpandedMatches(!expandedMatches)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}
+                >
+                  {expandedMatches ? 'Show Less' : `Show All ${reconciliationResults.matches.length}`}
+                </button>
+              )}
+            </div>
+            
+            {(expandedMatches ? reconciliationResults.matches : reconciliationResults.matches.slice(0, 3)).map((match, index) => (
+              <div key={index} style={{
+                padding: '16px',
+                backgroundColor: '#d4f7e5',
+                borderRadius: '8px',
+                borderLeft: '4px solid #22c55e',
+                marginBottom: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: '600' }}>PCC Batch #{match.pccBatch.batchNumber}</div>
+                    <div style={{ fontSize: '14px', color: '#065f46' }}>{match.pccBatch.description}</div>
+                    <div style={{ fontSize: '12px', color: '#065f46' }}>Date: {match.pccBatch.postingDate}</div>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#15803d', fontWeight: '600' }}>✓ Perfect Match</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                      ${match.pccBatch.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#15803d', fontWeight: '600' }}>✓ Perfect Match</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          {reconciliationResults.matches.length > 3 && (
-            <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
-              ... and {reconciliationResults.matches.length - 3} more matches
-            </p>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {reconciliationResults.unmatchedPcc.length > 0 && (
-          <div style={{ marginBottom: '24px' }}>
-            <h4 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-              ❌ PCC Batches Without Bank Matches ({reconciliationResults.unmatchedPcc.length})
-            </h4>
-            {reconciliationResults.unmatchedPcc.slice(0, 3).map((batch, index) => (
+        {showPccUnmatched && reconciliationResults.unmatchedPcc.length > 0 && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '20px', fontWeight: '600' }}>
+                ❌ PCC Batches Without Bank Matches ({reconciliationResults.unmatchedPcc.length})
+              </h4>
+              {reconciliationResults.unmatchedPcc.length > 3 && (
+                <button
+                  onClick={() => setExpandedPccUnmatched(!expandedPccUnmatched)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}
+                >
+                  {expandedPccUnmatched ? 'Show Less' : `Show All ${reconciliationResults.unmatchedPcc.length}`}
+                </button>
+              )}
+            </div>
+            
+            {(expandedPccUnmatched ? reconciliationResults.unmatchedPcc : reconciliationResults.unmatchedPcc.slice(0, 3)).map((batch, index) => (
               <div key={index} style={{
                 padding: '16px',
                 backgroundColor: '#fecaca',
@@ -860,6 +1270,7 @@ function App() {
                   <div>
                     <div style={{ fontWeight: '600' }}>PCC Batch #{batch.batchNumber}</div>
                     <div style={{ fontSize: '14px', color: '#7f1d1d' }}>{batch.description}</div>
+                    <div style={{ fontSize: '12px', color: '#7f1d1d' }}>Date: {batch.postingDate}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
@@ -870,11 +1281,56 @@ function App() {
                 </div>
               </div>
             ))}
-            {reconciliationResults.unmatchedPcc.length > 3 && (
-              <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                ... and {reconciliationResults.unmatchedPcc.length - 3} more unmatched PCC batches
-              </p>
-            )}
+          </div>
+        )}
+
+        {showBankUnmatched && reconciliationResults.unmatchedBank.length > 0 && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '20px', fontWeight: '600' }}>
+                ⚠️ Bank Transactions Without PCC Matches ({reconciliationResults.unmatchedBank.length})
+              </h4>
+              {reconciliationResults.unmatchedBank.length > 3 && (
+                <button
+                  onClick={() => setExpandedBankUnmatched(!expandedBankUnmatched)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}
+                >
+                  {expandedBankUnmatched ? 'Show Less' : `Show All ${reconciliationResults.unmatchedBank.length}`}
+                </button>
+              )}
+            </div>
+            
+            {(expandedBankUnmatched ? reconciliationResults.unmatchedBank : reconciliationResults.unmatchedBank.slice(0, 3)).map((txn, index) => (
+              <div key={index} style={{
+                padding: '16px',
+                backgroundColor: '#fef3c7',
+                borderRadius: '8px',
+                borderLeft: '4px solid #f59e0b',
+                marginBottom: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: '600' }}>Bank ID: {txn[bankColumnMappings.bankIdentifier]}</div>
+                    <div style={{ fontSize: '14px', color: '#92400e' }}>{txn[bankColumnMappings.description] || 'No description'}</div>
+                    <div style={{ fontSize: '12px', color: '#92400e' }}>Date: {txn[bankColumnMappings.date]}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                      ${parseFloat(txn[bankColumnMappings.amount]).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#d97706', fontWeight: '600' }}>Extra in Bank</div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -918,6 +1374,40 @@ function App() {
             style={{...buttonStyle, backgroundColor: '#374151'}}
           >
             Reconcile Another Bank
+          </button>
+          <button
+            onClick={() => {
+              // Clear all data and start over
+              setPccFiles([]);
+              setBankFiles([]);
+              setPccData([]);
+              setBankData([]);
+              setBankColumns([]);
+              setBankColumnMappings({
+                bankIdentifier: '',
+                amount: '',
+                date: '',
+                description: ''
+              });
+              setPccBanks([]);
+              setBankMapping({});
+              setSelectedBankFile(null);
+              setSelectedPccBank('');
+              setReconciliationResults(null);
+              setShowCustomMapping(false);
+              setShowMatches(false);
+              setShowPccUnmatched(false);
+              setShowBankUnmatched(false);
+              setStep(1);
+            }}
+            style={{
+              ...buttonStyle,
+              backgroundColor: 'white',
+              color: '#374151',
+              border: '2px solid #d1d5db'
+            }}
+          >
+            Clear & Start Over
           </button>
         </div>
       </div>

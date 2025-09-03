@@ -17,7 +17,7 @@ const trackUsage = async (data) => {
   formData.append('entry.976613466', data.template || 'Manual'); // Template Used
   formData.append('entry.1475915948', data.transactionCount || 0); // Transaction Count
   formData.append('entry.221412348', data.status || 'Success'); // Status
-  formData.append('entry.153128502', data.userId || 'Anonymous'); // User ID
+  formData.append('entry.153128502', `session_${Date.now()}`); // User ID
 
   console.log('Submitting to Google Form...');
 

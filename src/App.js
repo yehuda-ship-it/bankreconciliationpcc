@@ -2,6 +2,38 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
+const trackUsage = async (data) => {
+  console.log('trackUsage called with:', data);
+  
+  const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfG_3KkUupE-_dHmxnmh7pylok8b_z-amopp_tZg_2-uFUvDA/formResponse';
+  
+  const now = new Date();
+  const formData = new FormData();
+  
+  // Map your data to the correct form fields
+  formData.append('entry.675496748', now.toLocaleDateString()); // Date
+  formData.append('entry.538159220', now.toLocaleTimeString()); // Time
+  formData.append('entry.755585704', data.facility || 'Unknown'); // Facility
+  formData.append('entry.976613466', data.template || 'Manual'); // Template Used
+  formData.append('entry.1475915948', data.transactionCount || 0); // Transaction Count
+  formData.append('entry.221412348', data.status || 'Success'); // Status
+  formData.append('entry.153128502', data.userId || 'Anonymous'); // User ID
+
+  console.log('Submitting to Google Form...');
+
+  try {
+    await fetch(FORM_URL, {
+      method: 'POST',
+      body: formData,
+      mode: 'no-cors' // Important for Google Forms
+    });
+    console.log('✅ Usage tracked successfully via Google Form');
+  } catch (error) {
+    console.error('❌ Tracking failed:', error);
+  }
+};
+    
+
 function App() {
   const [pccFiles, setPccFiles] = useState([]);
   const [bankFiles, setBankFiles] = useState([]);
@@ -381,7 +413,17 @@ function App() {
       selectedPccBank,
       mappedBankId
     });
-    
+
+trackUsage({
+  facility: selectedPccBank, // Using PCC bank as facility
+  template: savedTemplates.find(t => 
+    t.mapping.bankIdentifier === bankColumnMappings.bankIdentifier &&
+    t.mapping.amount === bankColumnMappings.amount &&
+    t.mapping.date === bankColumnMappings.date
+  )?.name || 'Manual Mapping',
+  transactionCount: bankData.length,
+  status: 'Success'
+});
     setStep(5);
   };
 
